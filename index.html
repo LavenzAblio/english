@@ -98,6 +98,23 @@
 
     .view[hidden] { display: none; }
 
+    .list { max-height: 420px; overflow-y: auto; padding-right: 0.5rem; }
+
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .list-item:last-child { border-bottom: none; }
+
+    .list-item strong { color: #fca5a5; }
+
+    .list-empty { color: var(--muted); margin: 0; }
+
     .result-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -305,6 +322,10 @@
       <div class="muted" style="margin-top: 0.75rem;">
         입력을 완료하면 추리 화면으로 이동하며, 원문은 숨겨집니다.
       </div>
+      <div class="button-row">
+        <button type="button" id="save-request">입력한 문장 저장</button>
+        <button type="button" id="open-saved">저장된 문장</button>
+      </div>
     </section>
 
     <section id="game-view" class="view" hidden>
@@ -338,6 +359,28 @@
         </form>
       </section>
     </section>
+
+    <section id="naming-view" class="card view" hidden>
+      <h2>문장 저장</h2>
+      <p class="muted">저장할 문장의 이름을 입력해 주세요.</p>
+      <form id="naming-form">
+        <label for="name-input">명칭</label>
+        <textarea id="name-input" placeholder="예: 연습 문장 1" rows="2"></textarea>
+        <div class="button-row">
+          <button type="submit">저장</button>
+          <button type="button" id="cancel-naming">취소</button>
+        </div>
+        <p id="naming-error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <section id="saved-view" class="card view" hidden>
+      <div class="stats" style="margin-bottom: 0.5rem;">
+        <h2 style="margin: 0;">저장된 문장들</h2>
+        <button type="button" id="back-to-intro">메인 타이틀로</button>
+      </div>
+      <div id="saved-list" class="list"></div>
+    </section>
   </main>
 
   <footer>
@@ -355,6 +398,7 @@
     const ARTICLES = new Set(["a", "an", "the"]);
     const PUNCTUATION_REGEX = /[\.!,?;:'"\-–—…()\[\]{}\/\\]/g;
     const STATS_KEY = "shuffle-stats";
+    const SAVED_KEY = "saved-sentences";
 
     const textArea = document.getElementById("text");
     const guessArea = document.getElementById("guess");
@@ -368,21 +412,37 @@
     const guessHighlightEl = document.getElementById("guess-highlight");
     const introView = document.getElementById("intro-view");
     const gameView = document.getElementById("game-view");
+    const namingView = document.getElementById("naming-view");
+    const savedView = document.getElementById("saved-view");
     const introHeader = document.getElementById("intro-header");
     const gameHeader = document.getElementById("game-header");
     const newSentenceBtn = document.getElementById("new-sentence");
     const accuracyEl = document.getElementById("accuracy");
     const scoreEl = document.getElementById("score");
     const toastContainer = document.getElementById("toast-container");
+    const saveRequestBtn = document.getElementById("save-request");
+    const openSavedBtn = document.getElementById("open-saved");
+    const namingForm = document.getElementById("naming-form");
+    const nameInput = document.getElementById("name-input");
+    const namingError = document.getElementById("naming-error");
+    const cancelNamingBtn = document.getElementById("cancel-naming");
+    const savedListEl = document.getElementById("saved-list");
+    const backToIntroBtn = document.getElementById("back-to-intro");
 
     let currentResult = null;
     let stats = loadStats();
+    let pendingSaveText = "";
+    let currentSource = "manual"; // manual | saved
 
     function activeField() {
-      return gameView.hidden ? textArea : guessArea;
+      if (!namingView.hidden) return nameInput;
+      if (!gameView.hidden) return guessArea;
+      if (!introView.hidden) return textArea;
+      return null;
     }
 
     function activeForm() {
+      if (!namingView.hidden) return namingForm;
       return gameView.hidden ? form : guessForm;
     }
 
@@ -504,6 +564,8 @@
       introHeader.hidden = true;
       gameView.hidden = false;
       gameHeader.hidden = false;
+      namingView.hidden = true;
+      savedView.hidden = true;
       guessArea.value = "";
       guessFeedbackEl.textContent = "";
       guessFeedbackEl.classList.remove("success");
@@ -518,6 +580,8 @@
       gameHeader.hidden = true;
       introView.hidden = false;
       introHeader.hidden = false;
+      namingView.hidden = true;
+      savedView.hidden = true;
       textArea.value = "";
       guessFeedbackEl.textContent = "";
       guessFeedbackEl.classList.remove("success");
@@ -526,6 +590,29 @@
       guessErrorEl.hidden = true;
       currentResult = null;
       textArea.focus();
+      currentSource = "manual";
+    }
+
+    function showNamingView() {
+      gameView.hidden = true;
+      introView.hidden = true;
+      introHeader.hidden = false;
+      gameHeader.hidden = true;
+      savedView.hidden = true;
+      namingView.hidden = false;
+      namingError.hidden = true;
+      nameInput.value = "";
+      nameInput.focus();
+    }
+
+    function showSavedView() {
+      gameView.hidden = true;
+      introView.hidden = true;
+      namingView.hidden = true;
+      introHeader.hidden = true;
+      gameHeader.hidden = true;
+      savedView.hidden = false;
+      renderSavedList();
     }
 
     function normalizeForComparison(text) {
@@ -706,6 +793,58 @@
       updateStatsDisplay();
     }
 
+    function loadSaved() {
+      try {
+        const raw = localStorage.getItem(SAVED_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed;
+      } catch (err) {
+        console.error("Failed to load saved", err);
+        return [];
+      }
+    }
+
+    function saveSaved(entries) {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(entries));
+      renderSavedList();
+    }
+
+    function renderSavedList() {
+      const entries = loadSaved();
+      savedListEl.innerHTML = "";
+      if (entries.length === 0) {
+        const p = document.createElement("p");
+        p.className = "list-empty";
+        p.textContent = "저장된 문장이 없습니다.";
+        savedListEl.appendChild(p);
+        return;
+      }
+      entries
+        .slice()
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .forEach((entry) => {
+          const item = document.createElement("div");
+          item.className = "list-item";
+          const title = document.createElement("strong");
+          title.textContent = entry.name;
+          const preview = document.createElement("span");
+          preview.className = "muted";
+          preview.style.flex = "1";
+          preview.textContent = entry.text;
+          const startBtn = document.createElement("button");
+          startBtn.type = "button";
+          startBtn.textContent = "시작";
+          startBtn.addEventListener("click", () => {
+            currentSource = "saved";
+            shuffleAndRender(entry.text);
+          });
+          item.append(title, preview, startBtn);
+          savedListEl.appendChild(item);
+        });
+    }
+
     function shuffleAndRender(text) {
       if (!text.trim()) {
         errorEl.hidden = false;
@@ -723,6 +862,7 @@
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
+      currentSource = "manual";
       shuffleAndRender(textArea.value);
     });
 
@@ -759,7 +899,11 @@
         guessHighlightEl.innerHTML = "";
         textArea.value = "";
         showToast(`정답입니다! +${pointsEarned}점 · 레벨 ${level}`, "success");
-        showIntroView();
+        if (currentSource === "saved") {
+          showSavedView();
+        } else {
+          showIntroView();
+        }
       } else {
         guessFeedbackEl.textContent = `아쉽지만 정답이 아닙니다. 유사도: ${similarity}%`;
         guessFeedbackEl.classList.remove("success");
@@ -768,6 +912,73 @@
     });
 
     newSentenceBtn.addEventListener("click", () => {
+      showIntroView();
+      currentSource = "manual";
+    });
+
+    saveRequestBtn.addEventListener("click", () => {
+      const text = textArea.value.trim();
+      if (!text) {
+        errorEl.hidden = false;
+        errorEl.textContent = "저장할 문장을 입력해 주세요.";
+        return;
+      }
+      const existing = loadSaved();
+      const normalized = normalizeAndTokenize(text).normalized;
+      if (existing.some((item) => item.normalized === normalized)) {
+        errorEl.hidden = false;
+        errorEl.textContent = "해당 문장은 이미 저장되어 있습니다.";
+        return;
+      }
+      errorEl.hidden = true;
+      pendingSaveText = text;
+      showNamingView();
+    });
+
+    openSavedBtn.addEventListener("click", () => {
+      showSavedView();
+    });
+
+    cancelNamingBtn.addEventListener("click", () => {
+      pendingSaveText = "";
+      showIntroView();
+    });
+
+    namingForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!pendingSaveText.trim()) {
+        namingError.hidden = false;
+        namingError.textContent = "저장할 문장이 없습니다.";
+        return;
+      }
+      const name = nameInput.value.trim();
+      if (!name) {
+        namingError.hidden = false;
+        namingError.textContent = "명칭을 입력해 주세요.";
+        return;
+      }
+      const normalized = normalizeAndTokenize(pendingSaveText).normalized;
+      const entries = loadSaved();
+      if (entries.some((item) => item.normalized === normalized)) {
+        namingError.hidden = false;
+        namingError.textContent = "해당 문장은 이미 저장되어 있습니다.";
+        return;
+      }
+      const newEntry = {
+        id: crypto.randomUUID(),
+        name,
+        text: pendingSaveText,
+        normalized,
+        createdAt: Date.now(),
+      };
+      entries.push(newEntry);
+      saveSaved(entries);
+      pendingSaveText = "";
+      showToast("문장이 저장되었습니다.", "success");
+      showSavedView();
+    });
+
+    backToIntroBtn.addEventListener("click", () => {
       showIntroView();
     });
 
@@ -783,7 +994,7 @@
     function routeGlobalKey(event) {
       const field = activeField();
       if (!field) return;
-      if (event.target === textArea || event.target === guessArea || event.target === field) return;
+      if (event.target === textArea || event.target === guessArea || event.target === nameInput || event.target === field) return;
       if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
       if (event.key === "Tab") return;
 
@@ -813,11 +1024,13 @@
 
     attachEnterSubmit(textArea, form);
     attachEnterSubmit(guessArea, guessForm);
+    attachEnterSubmit(nameInput, namingForm);
     window.addEventListener("keydown", routeGlobalKey, true);
 
     window.addEventListener("load", () => {
       stats = loadStats();
       updateStatsDisplay();
+      renderSavedList();
     });
   </script>
 </body>
