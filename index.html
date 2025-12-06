@@ -154,6 +154,58 @@
       margin: 0.5rem 0 0;
       font-weight: 700;
     }
+
+    #toast-container {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .toast {
+      min-width: 240px;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid #243149;
+      border-left: 4px solid #38bdf8;
+      color: var(--fg);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      box-shadow: 0 12px 45px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      transform: scale(0.92) translateY(6px);
+      animation: toast-life 3.2s ease-out forwards, toast-pulse 1.2s ease-out;
+    }
+
+    .toast.success { border-left-color: #34d399; }
+    .toast.error { border-left-color: var(--error); }
+
+    @keyframes toast-life {
+      0% {
+        opacity: 1;
+        transform: scale(0.96) translateY(6px);
+      }
+      60% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1) translateY(16px);
+      }
+    }
+
+    @keyframes toast-pulse {
+      0% { transform: scale(0.9); }
+      25% { transform: scale(1.06); }
+      45% { transform: scale(0.96); }
+      65% { transform: scale(1.03); }
+      80% { transform: scale(0.99); }
+      100% { transform: scale(1); }
+    }
   </style>
 </head>
 <body>
@@ -225,6 +277,8 @@
     <p id="global-feedback" class="global-feedback" hidden></p>
   </footer>
 
+  <div id="toast-container" aria-live="polite"></div>
+
   <script>
     const ARTICLES = new Set(["a", "an", "the"]);
     const PUNCTUATION_REGEX = /[\.!,?;:'"\-–—…()\[\]{}\/\\]/g;
@@ -246,7 +300,7 @@
     const newSentenceBtn = document.getElementById("new-sentence");
     const accuracyEl = document.getElementById("accuracy");
     const scoreEl = document.getElementById("score");
-    const globalFeedbackEl = document.getElementById("global-feedback");
+    const toastContainer = document.getElementById("toast-container");
 
     let currentResult = null;
     let stats = loadStats();
@@ -260,17 +314,13 @@
       return Math.floor(points / 100) + 1;
     }
 
-    function setGlobalFeedback(message, isSuccess = false) {
-      if (!message) {
-        globalFeedbackEl.hidden = true;
-        globalFeedbackEl.textContent = "";
-        globalFeedbackEl.classList.remove("success", "error");
-        return;
-      }
-      globalFeedbackEl.hidden = false;
-      globalFeedbackEl.textContent = message;
-      globalFeedbackEl.classList.toggle("success", isSuccess);
-      globalFeedbackEl.classList.toggle("error", !isSuccess);
+    function showToast(message, type = "success") {
+      if (!message) return;
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      toastContainer.appendChild(toast);
+      toast.addEventListener("animationend", () => toast.remove());
     }
 
     function normalizeAndTokenize(text) {
@@ -431,7 +481,6 @@
         return;
       }
       errorEl.hidden = true;
-      setGlobalFeedback("");
 
       const { lowered, normalized, tokens, punctuation } = normalizeAndTokenize(text);
       const shuffledTokens = shuffleTokens(tokens);
@@ -469,7 +518,8 @@
         const level = calculateLevel(stats.points || 0);
         guessFeedbackEl.textContent = "정답입니다! 완벽하게 일치합니다.";
         guessFeedbackEl.classList.add("success");
-        setGlobalFeedback(`정답입니다! +${pointsEarned}점 획득 · 현재 레벨 ${level}`, true);
+        textArea.value = "";
+        showToast(`정답입니다! +${pointsEarned}점 · 레벨 ${level}`, "success");
         showIntroView();
       } else {
         guessFeedbackEl.textContent = `아쉽지만 정답이 아닙니다. 유사도: ${similarity}%`;
@@ -478,7 +528,6 @@
     });
 
     newSentenceBtn.addEventListener("click", () => {
-      setGlobalFeedback("");
       showIntroView();
     });
 
