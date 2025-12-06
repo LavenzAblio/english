@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>영문 무작위 배열 게임</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #050505;
+      --fg: #f8fafc;
+      --card: #0d0d0d;
+      --accent: #ef4444;
+      --error: #f87171;
+      --muted: #cbd5e1;
+      --border: #2a0c0c;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Pretendard", "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(145deg, #050505, #0b0b0b 50%, #111);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      max-width: 920px;
+      padding: 2rem 1.5rem 1rem;
+    }
+
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: 2rem;
+      color: #fca5a5;
+    }
+
+    main {
+      width: 100%;
+      max-width: 920px;
+      padding: 0 1.5rem 2rem;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    label { font-weight: 600; }
+
+    textarea {
+      width: 100%;
+      margin-top: 0.5rem;
+      background: #0b0b0b;
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      font-size: 1rem;
+      resize: vertical;
+      min-height: 110px;
+      user-select: text;
+    }
+
+    button {
+      appearance: none;
+      margin-top: 0.75rem;
+      padding: 0.7rem 1.1rem;
+      background: linear-gradient(135deg, #7f1d1d, var(--accent));
+      color: #fff7ed;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+      box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, #7f1d1d, #b91c1c);
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(1px); }
+
+    .muted { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+
+    .view[hidden] { display: none; }
+
+    .list { max-height: 420px; overflow-y: auto; padding-right: 0.5rem; }
+
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .list-item:last-child { border-bottom: none; }
+
+    .list-item strong { color: #fca5a5; }
+
+    .list-empty { color: var(--muted); margin: 0; }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      background: #0b0b0b;
+      border: 1px solid var(--border);
+      margin: 0.15rem;
+    }
+
+    .hint-text {
+      word-wrap: break-word;
+      font-weight: 600;
+      color: #fecdd3;
+    }
+
+    .hint-token {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 8px;
+      transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+      cursor: pointer;
+    }
+
+    .hint-token:hover { transform: translateY(-1px); }
+
+    .hint-token.selected {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid var(--accent);
+      position: relative;
+    }
+
+    .hint-token.selected::after {
+      content: "✓";
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
+    .mask {
+      letter-spacing: 1px;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: #0b0b0b;
+      padding: 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: #f1f5f9;
+    }
+
+    .error { color: var(--error); font-weight: 700; margin: 0.5rem 0 0; }
+
+    .success { color: #f87171; font-weight: 700; margin: 0.5rem 0 0; }
+
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .highlight-display {
+      margin: 0.5rem 0 0;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: #0b0b0b;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--fg);
+    }
+
+    .highlight-display .token {
+      display: inline-block;
+      margin: 0.15rem 0.3rem 0.15rem 0;
+      padding: 0.2rem 0.4rem;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .highlight-display .token.typo {
+      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .highlight-display .token.order-issue {
+      border-color: #fbbf24;
+      background: rgba(251, 191, 36, 0.1);
+    }
+
+    .highlight-display .notice {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: #fca5a5;
+      font-weight: 700;
+    }
+  
+    .button-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    footer {
+      width: 100%;
+      max-width: 920px;
+      padding: 0 1.5rem 2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .global-feedback {
+      margin: 0.5rem 0 0;
+      font-weight: 700;
+    }
+
+    #toast-container {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .toast {
+      min-width: 288px;
+      background: rgba(28, 12, 12, 0.95);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      color: var(--fg);
+      border-radius: 12px;
+      padding: 1.05rem 1.2rem;
+      box-shadow: 0 12px 45px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      transform: scale(0.92) translateY(6px);
+      animation: toast-life 10s ease-out forwards, toast-pulse 1s ease-out;
+    }
+
+    .toast.success { border-left-color: #f87171; }
+    .toast.error { border-left-color: var(--error); }
+
+    @keyframes toast-life {
+      0% {
+        opacity: 1;
+        transform: scale(0.96) translateY(6px);
+      }
+      88% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1) translateY(16px);
+      }
+    }
+
+    @keyframes toast-pulse {
+      0% { transform: scale(0.85); }
+      18% { transform: scale(1.12); }
+      32% { transform: scale(0.92); }
+      48% { transform: scale(1.06); }
+      64% { transform: scale(0.98); }
+      80% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <header id="intro-header">
+    <h1>영문 무작위 배열 게임</h1>
+    <p class="muted">
+      영문 문장을 입력하면 소문자로 변환하고 특수 문장부호를 제거한 뒤, 단어를 무작위로 섞어 힌트를 제공합니다.
+      관사(a, an, the)는 반드시 다음 단어와 붙어 하나의 토큰으로 취급하며, 단어 사이에는 " / " 구분자를 사용합니다.
+      문장부호가 있던 자리는 ▢ 로 표시되어 원문의 구조를 추리할 수 있습니다.
+    </p>
+  </header>
+
+  <header id="game-header" hidden>
+    <h1>추리 화면</h1>
+    <p class="muted">원문은 숨겨지고, 무작위 힌트와 문장부호 위치만 제공됩니다.</p>
+  </header>
+
+  <main>
+    <section id="intro-view" class="card view">
+      <form id="shuffle-form">
+        <label for="text">영문을 입력하세요</label>
+        <textarea id="text" name="text" placeholder="There is a train."></textarea>
+        <button type="submit">섞기</button>
+        <p id="error" class="error" hidden></p>
+      </form>
+      <div class="muted" style="margin-top: 0.75rem;">
+        입력을 완료하면 추리 화면으로 이동하며, 원문은 숨겨집니다.
+      </div>
+      <div class="button-row">
+        <button type="button" id="save-request">입력한 문장 저장</button>
+        <button type="button" id="open-saved">저장된 문장</button>
+      </div>
+    </section>
+
+    <section id="game-view" class="view" hidden>
+      <section class="card">
+        <div class="result-grid">
+          <div>
+            <h2>무작위 힌트</h2>
+            <p id="hint" class="hint-text">아직 입력된 문장이 없습니다.</p>
+            <p class="muted">단어는 항상 <strong> / </strong> 로 구분됩니다.</p>
+          </div>
+          <div>
+            <h2>문장부호 위치 표시</h2>
+            <p id="mask" class="mask">▢ 기호가 문장부호가 있던 위치입니다.</p>
+            <p class="muted">문장 길이는 표시하지만, 원문 글자는 모두 숨겨집니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>추리 입력</h2>
+        <form id="guess-form">
+          <label for="guess" class="muted">무작위 힌트와 문장부호 위치를 활용해 문장을 재구성해 보세요.</label>
+          <textarea id="guess" placeholder="여기에 추리한 문장을 입력하세요."></textarea>
+          <p id="guess-error" class="error" hidden></p>
+          <p id="guess-feedback" class="muted"></p>
+          <p id="guess-highlight" class="highlight-display" hidden></p>
+          <div class="button-row">
+            <button type="submit">정답 제출</button>
+            <button type="button" id="new-sentence">다른 문장 입력하기</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <section id="naming-view" class="card view" hidden>
+      <h2>문장 저장</h2>
+      <p class="muted">저장할 문장의 이름을 입력해 주세요.</p>
+      <form id="naming-form">
+        <label for="name-input">명칭</label>
+        <textarea id="name-input" placeholder="예: 연습 문장 1" rows="2"></textarea>
+        <div class="button-row">
+          <button type="submit">저장</button>
+          <button type="button" id="cancel-naming">취소</button>
+        </div>
+        <p id="naming-error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <section id="saved-view" class="card view" hidden>
+      <div class="stats" style="margin-bottom: 0.5rem;">
+        <h2 style="margin: 0;">저장된 문장들</h2>
+        <button type="button" id="back-to-intro">메인 타이틀로</button>
+      </div>
+      <div id="saved-list" class="list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="stats">
+      <p id="accuracy" class="muted">누적 적중률: 0% (0/0)</p>
+      <p id="score" class="muted">점수: 0점 · 레벨 1</p>
+    </div>
+    <p class="muted">문장부호는 ▢ 위치만 확인할 수 있으며 원문은 공개되지 않습니다.</p>
+    <p id="global-feedback" class="global-feedback" hidden></p>
+  </footer>
+
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script>
+    const ARTICLES = new Set(["a", "an", "the"]);
+    const PUNCTUATION_REGEX = /[\.!,?;:'"\-–—…()\[\]{}\/\\]/g;
+    const STATS_KEY = "shuffle-stats";
+    const SAVED_KEY = "saved-sentences";
+
+    const textArea = document.getElementById("text");
+    const guessArea = document.getElementById("guess");
+    const form = document.getElementById("shuffle-form");
+    const guessForm = document.getElementById("guess-form");
+    const hintEl = document.getElementById("hint");
+    const maskEl = document.getElementById("mask");
+    const errorEl = document.getElementById("error");
+    const guessErrorEl = document.getElementById("guess-error");
+    const guessFeedbackEl = document.getElementById("guess-feedback");
+    const guessHighlightEl = document.getElementById("guess-highlight");
+    const introView = document.getElementById("intro-view");
+    const gameView = document.getElementById("game-view");
+    const namingView = document.getElementById("naming-view");
+    const savedView = document.getElementById("saved-view");
+    const introHeader = document.getElementById("intro-header");
+    const gameHeader = document.getElementById("game-header");
+    const newSentenceBtn = document.getElementById("new-sentence");
+    const accuracyEl = document.getElementById("accuracy");
+    const scoreEl = document.getElementById("score");
+    const toastContainer = document.getElementById("toast-container");
+    const saveRequestBtn = document.getElementById("save-request");
+    const openSavedBtn = document.getElementById("open-saved");
+    const namingForm = document.getElementById("naming-form");
+    const nameInput = document.getElementById("name-input");
+    const namingError = document.getElementById("naming-error");
+    const cancelNamingBtn = document.getElementById("cancel-naming");
+    const savedListEl = document.getElementById("saved-list");
+    const backToIntroBtn = document.getElementById("back-to-intro");
+
+    let currentResult = null;
+    let stats = loadStats();
+    let pendingSaveText = "";
+    let currentSource = "manual"; // manual | saved
+
+    function activeField() {
+      if (!namingView.hidden) return nameInput;
+      if (!gameView.hidden) return guessArea;
+      if (!introView.hidden) return textArea;
+      return null;
+    }
+
+    function activeForm() {
+      if (!namingView.hidden) return namingForm;
+      return gameView.hidden ? form : guessForm;
+    }
+
+    function insertAtCursor(field, text) {
+      const start = field.selectionStart ?? field.value.length;
+      const end = field.selectionEnd ?? field.value.length;
+      const before = field.value.slice(0, start);
+      const after = field.value.slice(end);
+      field.value = `${before}${text}${after}`;
+      const newPos = start + text.length;
+      field.setSelectionRange(newPos, newPos);
+    }
+
+    function backspaceAtCursor(field) {
+      const start = field.selectionStart ?? field.value.length;
+      const end = field.selectionEnd ?? field.value.length;
+      if (start === 0 && end === 0) return;
+      const deleteStart = start === end ? Math.max(0, start - 1) : start;
+      field.value = field.value.slice(0, deleteStart) + field.value.slice(end);
+      field.setSelectionRange(deleteStart, deleteStart);
+    }
+
+    function calculatePoints(normalizedText) {
+      const cleanedLength = normalizedText.replace(/\s+/g, "").length;
+      return Math.max(5, Math.ceil(cleanedLength * 1.2));
+    }
+
+    function calculateLevel(points) {
+      return Math.floor(points / 100) + 1;
+    }
+
+    function showToast(message, type = "success") {
+      if (!message) return;
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      toastContainer.appendChild(toast);
+      toast.addEventListener("animationend", (event) => {
+        if (event.animationName === "toast-life") {
+          toast.remove();
+        }
+      });
+    }
+
+    function escapeHtml(value) {
+      const map = { '&': "&amp;", '<': "&lt;", '>': "&gt;", '"': "&quot;", "'": "&#39;" };
+      return value.replace(/[&<>"']/g, (ch) => map[ch]);
+    }
+
+    function normalizeAndTokenize(text) {
+      const lowered = text.toLowerCase();
+      const punctuation = [];
+      PUNCTUATION_REGEX.lastIndex = 0;
+      let match;
+      while ((match = PUNCTUATION_REGEX.exec(lowered)) !== null) {
+        punctuation.push({ index: match.index, symbol: match[0] });
+      }
+      const normalized = lowered.replace(PUNCTUATION_REGEX, "");
+      const rawTokens = normalized.trim().split(/\s+/).filter(Boolean);
+
+      const tokens = [];
+      for (let i = 0; i < rawTokens.length; ) {
+        const word = rawTokens[i];
+        if (ARTICLES.has(word) && i + 1 < rawTokens.length) {
+          tokens.push(`${word} ${rawTokens[i + 1]}`);
+          i += 2;
+        } else {
+          tokens.push(word);
+          i += 1;
+        }
+      }
+
+      return { lowered, normalized, tokens, punctuation };
+    }
+
+    function shuffleTokens(tokens) {
+      const arr = [...tokens];
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function punctuationMask(originalLower, punctuation, placeholder = "·", punctPlaceholder = "▢") {
+      const punctIndexes = new Set(punctuation.map((p) => p.index));
+      return Array.from(originalLower)
+        .map((ch, idx) => {
+          if (punctIndexes.has(idx)) return punctPlaceholder;
+          if (/\s/.test(ch)) return ch;
+          return placeholder;
+        })
+        .join("");
+    }
+
+    function renderResult(result) {
+      renderHintTokens(result.shuffledTokens);
+      maskEl.textContent = punctuationMask(result.lowered, result.punctuation);
+    }
+
+    function renderHintTokens(tokens) {
+      hintEl.innerHTML = "";
+      tokens.forEach((token, idx) => {
+        const span = document.createElement("span");
+        span.className = "hint-token";
+        span.textContent = token;
+        span.addEventListener("click", () => span.classList.toggle("selected"));
+        hintEl.appendChild(span);
+        if (idx < tokens.length - 1) {
+          const separator = document.createElement("span");
+          separator.textContent = " / ";
+          hintEl.appendChild(separator);
+        }
+      });
+    }
+
+    function showGameView() {
+      introView.hidden = true;
+      introHeader.hidden = true;
+      gameView.hidden = false;
+      gameHeader.hidden = false;
+      namingView.hidden = true;
+      savedView.hidden = true;
+      guessArea.value = "";
+      guessFeedbackEl.textContent = "";
+      guessFeedbackEl.classList.remove("success");
+      guessHighlightEl.hidden = true;
+      guessHighlightEl.innerHTML = "";
+      guessErrorEl.hidden = true;
+      guessArea.focus();
+    }
+
+    function showIntroView() {
+      gameView.hidden = true;
+      gameHeader.hidden = true;
+      introView.hidden = false;
+      introHeader.hidden = false;
+      namingView.hidden = true;
+      savedView.hidden = true;
+      textArea.value = "";
+      guessFeedbackEl.textContent = "";
+      guessFeedbackEl.classList.remove("success");
+      guessHighlightEl.hidden = true;
+      guessHighlightEl.innerHTML = "";
+      guessErrorEl.hidden = true;
+      currentResult = null;
+      textArea.focus();
+      currentSource = "manual";
+    }
+
+    function showNamingView() {
+      gameView.hidden = true;
+      introView.hidden = true;
+      introHeader.hidden = false;
+      gameHeader.hidden = true;
+      savedView.hidden = true;
+      namingView.hidden = false;
+      namingError.hidden = true;
+      nameInput.value = "";
+      nameInput.focus();
+    }
+
+    function showSavedView() {
+      gameView.hidden = true;
+      introView.hidden = true;
+      namingView.hidden = true;
+      introHeader.hidden = true;
+      gameHeader.hidden = true;
+      savedView.hidden = false;
+      renderSavedList();
+    }
+
+    function normalizeForComparison(text) {
+      return text
+        .toLowerCase()
+        .replace(PUNCTUATION_REGEX, "")
+        .trim()
+        .replace(/\s+/g, " ");
+    }
+
+    function levenshtein(a, b) {
+      const rows = a.length + 1;
+      const cols = b.length + 1;
+      const dist = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+      for (let i = 0; i < rows; i += 1) dist[i][0] = i;
+      for (let j = 0; j < cols; j += 1) dist[0][j] = j;
+
+      for (let i = 1; i < rows; i += 1) {
+        for (let j = 1; j < cols; j += 1) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dist[i][j] = Math.min(
+            dist[i - 1][j] + 1,
+            dist[i][j - 1] + 1,
+            dist[i - 1][j - 1] + cost,
+          );
+        }
+      }
+      return dist[a.length][b.length];
+    }
+
+    function calculateSimilarity(guess, target) {
+      const normalizedGuess = normalizeForComparison(guess);
+      const normalizedTarget = normalizeForComparison(target);
+      const maxLen = Math.max(normalizedGuess.length, normalizedTarget.length, 1);
+      const distance = levenshtein(normalizedGuess, normalizedTarget);
+      const similarity = Math.max(0, 1 - distance / maxLen);
+      return {
+        normalizedGuess,
+        normalizedTarget,
+        similarity: +(similarity * 100).toFixed(1),
+        isExact: distance === 0,
+      };
+    }
+
+    function lcsPairs(targetTokens, guessTokens) {
+      const rows = targetTokens.length + 1;
+      const cols = guessTokens.length + 1;
+      const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+      for (let i = 1; i < rows; i += 1) {
+        for (let j = 1; j < cols; j += 1) {
+          if (targetTokens[i - 1] === guessTokens[j - 1]) {
+            dp[i][j] = dp[i - 1][j - 1] + 1;
+          } else {
+            dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+          }
+        }
+      }
+
+      const pairs = [];
+      let i = targetTokens.length;
+      let j = guessTokens.length;
+      while (i > 0 && j > 0) {
+        if (targetTokens[i - 1] === guessTokens[j - 1]) {
+          pairs.push([i - 1, j - 1]);
+          i -= 1;
+          j -= 1;
+        } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+          i -= 1;
+        } else {
+          j -= 1;
+        }
+      }
+
+      return pairs.reverse();
+    }
+
+    function countTokens(tokens) {
+      const map = new Map();
+      tokens.forEach((token) => {
+        map.set(token, (map.get(token) || 0) + 1);
+      });
+      return map;
+    }
+
+    function analyzeTokens(targetTokens, guessTokens) {
+      const targetSet = new Set(targetTokens);
+      const targetCounts = countTokens(targetTokens);
+      const guessCounts = countTokens(guessTokens);
+
+      const missingTokens = [];
+      targetCounts.forEach((count, token) => {
+        const diff = count - (guessCounts.get(token) || 0);
+        if (diff > 0) {
+          missingTokens.push(token);
+        }
+      });
+
+      const pairs = lcsPairs(targetTokens, guessTokens);
+      const matchedGuess = new Set(pairs.map(([, guessIdx]) => guessIdx));
+
+      const typoIndices = [];
+      const orderIssueIndices = [];
+      guessTokens.forEach((token, idx) => {
+        if (!targetSet.has(token)) {
+          typoIndices.push(idx);
+        } else if (!matchedGuess.has(idx)) {
+          orderIssueIndices.push(idx);
+        }
+      });
+
+      return { missingTokens, typoIndices, orderIssueIndices };
+    }
+
+    function renderGuessAnalysis(guessTokens, { missingTokens, typoIndices, orderIssueIndices }) {
+      const notices = [];
+      if (missingTokens.length > 0) {
+        const listed = missingTokens.map((t) => `'${t}'`).join(", ");
+        notices.push(`${listed}가 사용되지 않고 있습니다.`);
+      }
+
+      let markup = notices.map((text) => `<span class="notice">${escapeHtml(text)}</span>`).join("");
+      const tokenHtml = guessTokens
+        .map((token, idx) => {
+          const classes = ["token"];
+          if (typoIndices.includes(idx)) classes.push("typo");
+          else if (orderIssueIndices.includes(idx)) classes.push("order-issue");
+          return `<span class="${classes.join(" ")}">${escapeHtml(token)}</span>`;
+        })
+        .join(" ");
+
+      markup += tokenHtml || "<span class=\"token\">(입력 없음)</span>";
+      guessHighlightEl.innerHTML = markup;
+      guessHighlightEl.hidden = false;
+    }
+
+    function loadStats() {
+      const base = { attempts: 0, correct: 0, points: 0, similaritySum: 0 };
+      try {
+        const raw = localStorage.getItem(STATS_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (!parsed) return { ...base };
+        return {
+          ...base,
+          ...parsed,
+          similaritySum:
+            parsed.similaritySum ?? (typeof parsed.correct === "number" ? parsed.correct * 100 : 0),
+        };
+      } catch (err) {
+        console.error("Failed to load stats", err);
+        return { ...base };
+      }
+    }
+
+    function saveStats(value) {
+      localStorage.setItem(STATS_KEY, JSON.stringify(value));
+    }
+
+    function updateStatsDisplay() {
+      const { attempts, correct, points = 0, similaritySum = 0 } = stats;
+      const accuracy = attempts === 0 ? 0 : (similaritySum / attempts).toFixed(1);
+      const level = calculateLevel(points);
+      accuracyEl.textContent = `누적 적중률: ${accuracy}% (${correct}/${attempts})`;
+      scoreEl.textContent = `점수: ${points}점 · 레벨 ${level}`;
+    }
+
+    function recordAttempt({ isCorrect, pointsEarned = 0, similarity }) {
+      stats.attempts += 1;
+      if (typeof similarity === "number" && !Number.isNaN(similarity)) {
+        stats.similaritySum = (stats.similaritySum || 0) + similarity;
+      }
+      if (isCorrect) {
+        stats.correct += 1;
+        stats.points = (stats.points || 0) + pointsEarned;
+      }
+      saveStats(stats);
+      updateStatsDisplay();
+    }
+
+    function loadSaved() {
+      try {
+        const raw = localStorage.getItem(SAVED_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed;
+      } catch (err) {
+        console.error("Failed to load saved", err);
+        return [];
+      }
+    }
+
+    function saveSaved(entries) {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(entries));
+      renderSavedList();
+    }
+
+    function renderSavedList() {
+      const entries = loadSaved();
+      savedListEl.innerHTML = "";
+      if (entries.length === 0) {
+        const p = document.createElement("p");
+        p.className = "list-empty";
+        p.textContent = "저장된 문장이 없습니다.";
+        savedListEl.appendChild(p);
+        return;
+      }
+      entries
+        .slice()
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .forEach((entry) => {
+          const item = document.createElement("div");
+          item.className = "list-item";
+          const title = document.createElement("strong");
+          title.textContent = entry.name;
+          const preview = document.createElement("span");
+          preview.className = "muted";
+          preview.style.flex = "1";
+          preview.textContent = "문장 내용은 숨겨져 있습니다.";
+          const startBtn = document.createElement("button");
+          startBtn.type = "button";
+          startBtn.textContent = "시작";
+          startBtn.addEventListener("click", () => {
+            currentSource = "saved";
+            shuffleAndRender(entry.text);
+          });
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "danger";
+          deleteBtn.textContent = "삭제";
+          deleteBtn.addEventListener("click", () => {
+            const ok = confirm(`'${entry.name}' 문장을 삭제하시겠어요?`);
+            if (!ok) return;
+            const next = loadSaved().filter((item) => item.id !== entry.id);
+            saveSaved(next);
+            showToast("저장된 문장이 삭제되었습니다.", "success");
+          });
+
+          const actions = document.createElement("div");
+          actions.style.display = "flex";
+          actions.style.gap = "0.5rem";
+          actions.append(startBtn, deleteBtn);
+
+          item.append(title, preview, actions);
+          savedListEl.appendChild(item);
+        });
+    }
+
+    function shuffleAndRender(text) {
+      if (!text.trim()) {
+        errorEl.hidden = false;
+        errorEl.textContent = "문장을 입력해 주세요.";
+        return;
+      }
+      errorEl.hidden = true;
+
+      const { lowered, normalized, tokens, punctuation } = normalizeAndTokenize(text);
+      const shuffledTokens = shuffleTokens(tokens);
+      currentResult = { original: text, lowered, normalized, tokens, punctuation, shuffledTokens };
+      renderResult(currentResult);
+      showGameView();
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      currentSource = "manual";
+      shuffleAndRender(textArea.value);
+    });
+
+    guessForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      guessErrorEl.hidden = true;
+      if (!currentResult) {
+        guessErrorEl.textContent = "먼저 문장을 섞어 주세요.";
+        guessErrorEl.hidden = false;
+        return;
+      }
+
+      const guessText = guessArea.value.trim();
+      if (!guessText) {
+        guessErrorEl.textContent = "추리한 문장을 입력해 주세요.";
+        guessErrorEl.hidden = false;
+        return;
+      }
+
+      const { similarity, isExact, normalizedGuess, normalizedTarget } = calculateSimilarity(
+        guessText,
+        currentResult.normalized,
+      );
+      const guessTokens = normalizeAndTokenize(guessText).tokens;
+      const analysis = analyzeTokens(currentResult.tokens, guessTokens);
+      const pointsEarned = isExact ? calculatePoints(currentResult.normalized) : 0;
+      recordAttempt({ isCorrect: isExact, pointsEarned, similarity });
+
+      if (isExact) {
+        const level = calculateLevel(stats.points || 0);
+        guessFeedbackEl.textContent = "정답입니다! 완벽하게 일치합니다.";
+        guessFeedbackEl.classList.add("success");
+        guessHighlightEl.hidden = true;
+        guessHighlightEl.innerHTML = "";
+        textArea.value = "";
+        showToast(`정답입니다! +${pointsEarned}점 · 레벨 ${level}`, "success");
+        if (currentSource === "saved") {
+          showSavedView();
+        } else {
+          showIntroView();
+        }
+      } else {
+        guessFeedbackEl.textContent = `아쉽지만 정답이 아닙니다. 유사도: ${similarity}%`;
+        guessFeedbackEl.classList.remove("success");
+        renderGuessAnalysis(guessTokens, analysis);
+      }
+    });
+
+    newSentenceBtn.addEventListener("click", () => {
+      showIntroView();
+      currentSource = "manual";
+    });
+
+    saveRequestBtn.addEventListener("click", () => {
+      const text = textArea.value.trim();
+      if (!text) {
+        errorEl.hidden = false;
+        errorEl.textContent = "저장할 문장을 입력해 주세요.";
+        return;
+      }
+      const existing = loadSaved();
+      const normalized = normalizeAndTokenize(text).normalized;
+      if (existing.some((item) => item.normalized === normalized)) {
+        errorEl.hidden = false;
+        errorEl.textContent = "해당 문장은 이미 저장되어 있습니다.";
+        return;
+      }
+      errorEl.hidden = true;
+      pendingSaveText = text;
+      showNamingView();
+    });
+
+    openSavedBtn.addEventListener("click", () => {
+      showSavedView();
+    });
+
+    cancelNamingBtn.addEventListener("click", () => {
+      pendingSaveText = "";
+      showIntroView();
+    });
+
+    namingForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!pendingSaveText.trim()) {
+        namingError.hidden = false;
+        namingError.textContent = "저장할 문장이 없습니다.";
+        return;
+      }
+      const name = nameInput.value.trim();
+      if (!name) {
+        namingError.hidden = false;
+        namingError.textContent = "명칭을 입력해 주세요.";
+        return;
+      }
+      const normalized = normalizeAndTokenize(pendingSaveText).normalized;
+      const entries = loadSaved();
+      if (entries.some((item) => item.normalized === normalized)) {
+        namingError.hidden = false;
+        namingError.textContent = "해당 문장은 이미 저장되어 있습니다.";
+        return;
+      }
+      const newEntry = {
+        id: crypto.randomUUID(),
+        name,
+        text: pendingSaveText,
+        normalized,
+        createdAt: Date.now(),
+      };
+      entries.push(newEntry);
+      saveSaved(entries);
+      pendingSaveText = "";
+      showToast("문장이 저장되었습니다.", "success");
+      showSavedView();
+    });
+
+    backToIntroBtn.addEventListener("click", () => {
+      showIntroView();
+    });
+
+    function attachEnterSubmit(textarea, formElement) {
+      textarea.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          formElement.requestSubmit();
+        }
+      });
+    }
+
+    function routeGlobalKey(event) {
+      const field = activeField();
+      if (!field) return;
+      if (event.target === textArea || event.target === guessArea || event.target === nameInput || event.target === field) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      if (event.key === "Tab") return;
+
+      field.focus({ preventScroll: true });
+
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        backspaceAtCursor(field);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          insertAtCursor(field, "\n");
+        } else {
+          activeForm().requestSubmit();
+        }
+        return;
+      }
+
+      if (event.key.length === 1) {
+        event.preventDefault();
+        insertAtCursor(field, event.key);
+      }
+    }
+
+    attachEnterSubmit(textArea, form);
+    attachEnterSubmit(guessArea, guessForm);
+    attachEnterSubmit(nameInput, namingForm);
+    window.addEventListener("keydown", routeGlobalKey, true);
+
+    window.addEventListener("load", () => {
+      stats = loadStats();
+      updateStatsDisplay();
+      renderSavedList();
+    });
+  </script>
+</body>
+</html>
