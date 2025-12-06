@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>영문 무작위 배열 게임</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --fg: #e2e8f0;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --error: #f87171;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Pretendard", "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
+      background: #0b1222;
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      max-width: 920px;
+      padding: 2rem 1.5rem 1rem;
+    }
+
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: 2rem;
+      color: #e0f2fe;
+    }
+
+    main {
+      width: 100%;
+      max-width: 920px;
+      padding: 0 1.5rem 2rem;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #243149;
+      border-radius: 14px;
+      padding: 1.25rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    label { font-weight: 600; }
+
+    textarea {
+      width: 100%;
+      margin-top: 0.5rem;
+      background: #0f172a;
+      color: var(--fg);
+      border: 1px solid #243149;
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      font-size: 1rem;
+      resize: vertical;
+      min-height: 110px;
+    }
+
+    button {
+      appearance: none;
+      margin-top: 0.75rem;
+      padding: 0.7rem 1.1rem;
+      background: linear-gradient(120deg, #38bdf8, #6366f1);
+      color: #0b1222;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(1px); }
+
+    .muted { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      background: #0b1222;
+      border: 1px solid #243149;
+      margin: 0.15rem;
+    }
+
+    .hint-text {
+      word-wrap: break-word;
+      font-weight: 600;
+      color: #bae6fd;
+    }
+
+    .mask {
+      letter-spacing: 1px;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: #0b1222;
+      padding: 0.75rem;
+      border-radius: 10px;
+      border: 1px solid #243149;
+      color: #e5e7eb;
+    }
+
+    .history-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.5rem 0 0;
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.6rem 0.7rem;
+      border-radius: 10px;
+      background: #0f172a;
+      border: 1px solid #243149;
+      cursor: pointer;
+      transition: border-color 120ms ease, transform 120ms ease;
+    }
+
+    .history-item:hover {
+      border-color: #38bdf8;
+      transform: translateY(-1px);
+    }
+
+    .history-item strong { color: #e2e8f0; }
+    .history-empty { color: #94a3b8; margin: 0.2rem 0 0; }
+
+    .error { color: var(--error); font-weight: 700; margin: 0.5rem 0 0; }
+
+    footer {
+      width: 100%;
+      max-width: 920px;
+      padding: 0 1.5rem 2rem;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>영문 무작위 배열 게임</h1>
+    <p class="muted">
+      영문 문장을 입력하면 소문자로 변환하고 특수 문장부호를 제거한 뒤, 단어를 무작위로 섞어 힌트를 제공합니다.
+      관사(a, an, the)는 반드시 다음 단어와 붙어 하나의 토큰으로 취급하며, 단어 사이에는 " / " 구분자를 사용합니다.
+      문장부호가 있던 자리는 ▢ 로 표시되어 원문의 구조를 추리할 수 있습니다.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <form id="shuffle-form">
+        <label for="text">영문을 입력하세요</label>
+        <textarea id="text" name="text" placeholder="There is a train."></textarea>
+        <button type="submit">섞기</button>
+        <p id="error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="result-grid">
+        <div>
+          <h2>무작위 힌트</h2>
+          <p id="hint" class="hint-text">아직 입력된 문장이 없습니다.</p>
+          <p class="muted">단어는 항상 <strong> / </strong> 로 구분됩니다.</p>
+        </div>
+        <div>
+          <h2>문장부호 위치 표시</h2>
+          <p id="mask" class="mask">▢ 기호가 문장부호가 있던 위치입니다.</p>
+          <p class="muted">원문 길이에 맞춰 ▢ 가 문장부호 힌트를 제공합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>이전 문장</h2>
+      <ul id="history" class="history-list"></ul>
+      <p id="history-empty" class="history-empty">저장된 문장이 없습니다.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>입력한 문장은 브라우저의 저장소(localStorage)에 저장되어 다시 방문해도 유지됩니다.</p>
+  </footer>
+
+  <script>
+    const ARTICLES = new Set(["a", "an", "the"]);
+    const PUNCTUATION_REGEX = /[\.!,?;:'"\-–—…()\[\]{}\/\\]/g;
+    const STORAGE_KEY = "shuffle-history";
+
+    const textArea = document.getElementById("text");
+    const form = document.getElementById("shuffle-form");
+    const hintEl = document.getElementById("hint");
+    const maskEl = document.getElementById("mask");
+    const errorEl = document.getElementById("error");
+    const historyEl = document.getElementById("history");
+    const historyEmptyEl = document.getElementById("history-empty");
+
+    function normalizeAndTokenize(text) {
+      const lowered = text.toLowerCase();
+      const punctuation = [];
+      let match;
+      while ((match = PUNCTUATION_REGEX.exec(lowered)) !== null) {
+        punctuation.push({ index: match.index, symbol: match[0] });
+      }
+      const normalized = lowered.replace(PUNCTUATION_REGEX, "");
+      const rawTokens = normalized.trim().split(/\s+/).filter(Boolean);
+
+      const tokens = [];
+      for (let i = 0; i < rawTokens.length; ) {
+        const word = rawTokens[i];
+        if (ARTICLES.has(word) && i + 1 < rawTokens.length) {
+          tokens.push(`${word} ${rawTokens[i + 1]}`);
+          i += 2;
+        } else {
+          tokens.push(word);
+          i += 1;
+        }
+      }
+
+      return { normalized, tokens, punctuation };
+    }
+
+    function shuffleTokens(tokens) {
+      const arr = [...tokens];
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function punctuationMask(normalized, punctuation, placeholder = "▢") {
+      const chars = Array.from(normalized);
+      punctuation.forEach(({ index }) => {
+        if (index < chars.length) {
+          chars[index] = placeholder;
+        }
+      });
+      return chars.join("");
+    }
+
+    function renderResult(result) {
+      hintEl.textContent = result.shuffledTokens.join(" / ");
+      maskEl.textContent = punctuationMask(result.normalized, result.punctuation);
+    }
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        console.error("Failed to load history", err);
+        return [];
+      }
+    }
+
+    function saveHistory(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function addToHistory(entry) {
+      const entries = loadHistory();
+      entries.push(entry);
+      // Keep the most recent 30 entries to avoid unbounded growth
+      if (entries.length > 30) {
+        entries.splice(0, entries.length - 30);
+      }
+      saveHistory(entries);
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const entries = loadHistory();
+      historyEl.innerHTML = "";
+      if (entries.length === 0) {
+        historyEmptyEl.hidden = false;
+        return;
+      }
+      historyEmptyEl.hidden = true;
+
+      entries
+        .map((entry, index) => ({ entry, index }))
+        .reverse()
+        .forEach(({ entry, index }) => {
+          const li = document.createElement("li");
+          li.className = "history-item";
+          const snippet = entry.original.length > 48
+            ? `${entry.original.slice(0, 48)}…`
+            : entry.original;
+          li.innerHTML = `<strong>${entries.length - index}</strong> ${snippet}`;
+          li.title = "클릭하여 다시 섞기";
+          li.addEventListener("click", () => {
+            textArea.value = entry.original;
+            shuffleAndRender(entry.original);
+          });
+          historyEl.appendChild(li);
+        });
+    }
+
+    function shuffleAndRender(text) {
+      if (!text.trim()) {
+        errorEl.hidden = false;
+        errorEl.textContent = "문장을 입력해 주세요.";
+        return;
+      }
+      errorEl.hidden = true;
+
+      const { normalized, tokens, punctuation } = normalizeAndTokenize(text);
+      const shuffledTokens = shuffleTokens(tokens);
+      const result = { original: text, normalized, tokens, punctuation, shuffledTokens };
+      renderResult(result);
+      addToHistory(result);
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      shuffleAndRender(textArea.value);
+    });
+
+    // Restore latest entry on load if it exists
+    window.addEventListener("load", () => {
+      renderHistory();
+      const entries = loadHistory();
+      if (entries.length > 0) {
+        const last = entries[entries.length - 1];
+        textArea.value = last.original;
+        renderResult(last);
+      }
+    });
+  </script>
+</body>
+</html>
