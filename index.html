@@ -91,6 +91,10 @@
       box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
     }
 
+    button.danger {
+      background: linear-gradient(135deg, #7f1d1d, #b91c1c);
+    }
+
     button:hover { transform: translateY(-1px); }
     button:active { transform: translateY(1px); }
 
@@ -840,7 +844,24 @@
             currentSource = "saved";
             shuffleAndRender(entry.text);
           });
-          item.append(title, preview, startBtn);
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "danger";
+          deleteBtn.textContent = "삭제";
+          deleteBtn.addEventListener("click", () => {
+            const ok = confirm(`'${entry.name}' 문장을 삭제하시겠어요?`);
+            if (!ok) return;
+            const next = loadSaved().filter((item) => item.id !== entry.id);
+            saveSaved(next);
+            showToast("저장된 문장이 삭제되었습니다.", "success");
+          });
+
+          const actions = document.createElement("div");
+          actions.style.display = "flex";
+          actions.style.gap = "0.5rem";
+          actions.append(startBtn, deleteBtn);
+
+          item.append(title, preview, actions);
           savedListEl.appendChild(item);
         });
     }
