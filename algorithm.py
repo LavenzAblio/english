@@ -6,15 +6,13 @@ The module handles three main concerns:
    a record of where punctuation once existed so the UI can show placeholders.
 2) Combine articles (a, an, the) with the following word before shuffling to honor
    the "article + noun" grouping rule.
-3) Persist and reload past prompts so players can revisit older challenges.
+3) Provide helpers for rebuilding punctuation masks while keeping the original text hidden.
 """
 from __future__ import annotations
 
-import json
 import random
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Iterable, List, Sequence
 
 ARTICLES = {"a", "an", "the"}
@@ -86,7 +84,7 @@ def normalize_and_tokenize(text: str) -> tuple[str, List[str], List[PunctuationH
 def shuffle_tokens(tokens: Sequence[str], seed: int | None = None) -> List[str]:
     """Return a new list of tokens in random order.
 
-    A seed can be provided for reproducible shuffles when storing history.
+    A seed can be provided for reproducible shuffles when needed for testing.
     """
     rng = random.Random(seed)
     shuffled = list(tokens)
@@ -105,44 +103,6 @@ def create_shuffle(text: str, seed: int | None = None) -> ShuffleResult:
         shuffled_tokens=shuffled_tokens,
         punctuation=punctuation,
     )
-
-
-def save_entry(entry: ShuffleResult, storage_path: str | Path = "history.json") -> None:
-    """Persist the shuffle entry so players can revisit it later."""
-    path = Path(storage_path)
-    existing: List[dict] = []
-    if path.exists():
-        existing = json.loads(path.read_text())
-
-    payload = {
-        "original_text": entry.original_text,
-        "normalized_text": entry.normalized_text,
-        "tokens": entry.tokens,
-        "shuffled_tokens": entry.shuffled_tokens,
-        "punctuation": [{"index": p.index, "symbol": p.symbol} for p in entry.punctuation],
-    }
-    existing.append(payload)
-    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2))
-
-
-def load_history(storage_path: str | Path = "history.json") -> List[ShuffleResult]:
-    """Load all stored shuffle entries from disk."""
-    path = Path(storage_path)
-    if not path.exists():
-        return []
-    raw_entries = json.loads(path.read_text())
-    results: List[ShuffleResult] = []
-    for item in raw_entries:
-        results.append(
-            ShuffleResult(
-                original_text=item["original_text"],
-                normalized_text=item["normalized_text"],
-                tokens=list(item["tokens"]),
-                shuffled_tokens=list(item["shuffled_tokens"]),
-                punctuation=[PunctuationHint(**hint) for hint in item.get("punctuation", [])],
-            )
-        )
-    return results
 
 
 def reconstruct_attempt(user_input: str, punctuation: Iterable[PunctuationHint]) -> str:
