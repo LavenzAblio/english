@@ -378,6 +378,33 @@
     let currentResult = null;
     let stats = loadStats();
 
+    function activeField() {
+      return gameView.hidden ? textArea : guessArea;
+    }
+
+    function activeForm() {
+      return gameView.hidden ? form : guessForm;
+    }
+
+    function insertAtCursor(field, text) {
+      const start = field.selectionStart ?? field.value.length;
+      const end = field.selectionEnd ?? field.value.length;
+      const before = field.value.slice(0, start);
+      const after = field.value.slice(end);
+      field.value = `${before}${text}${after}`;
+      const newPos = start + text.length;
+      field.setSelectionRange(newPos, newPos);
+    }
+
+    function backspaceAtCursor(field) {
+      const start = field.selectionStart ?? field.value.length;
+      const end = field.selectionEnd ?? field.value.length;
+      if (start === 0 && end === 0) return;
+      const deleteStart = start === end ? Math.max(0, start - 1) : start;
+      field.value = field.value.slice(0, deleteStart) + field.value.slice(end);
+      field.setSelectionRange(deleteStart, deleteStart);
+    }
+
     function calculatePoints(normalizedText) {
       const cleanedLength = normalizedText.replace(/\s+/g, "").length;
       return Math.max(5, Math.ceil(cleanedLength * 1.2));
@@ -753,8 +780,40 @@
       });
     }
 
+    function routeGlobalKey(event) {
+      const field = activeField();
+      if (!field) return;
+      if (event.target === textArea || event.target === guessArea || event.target === field) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      if (event.key === "Tab") return;
+
+      field.focus({ preventScroll: true });
+
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        backspaceAtCursor(field);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          insertAtCursor(field, "\n");
+        } else {
+          activeForm().requestSubmit();
+        }
+        return;
+      }
+
+      if (event.key.length === 1) {
+        event.preventDefault();
+        insertAtCursor(field, event.key);
+      }
+    }
+
     attachEnterSubmit(textArea, form);
     attachEnterSubmit(guessArea, guessForm);
+    window.addEventListener("keydown", routeGlobalKey, true);
 
     window.addEventListener("load", () => {
       stats = loadStats();
