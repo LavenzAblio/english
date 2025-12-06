@@ -119,6 +119,32 @@
       color: #fecdd3;
     }
 
+    .hint-token {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 8px;
+      transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+      cursor: pointer;
+    }
+
+    .hint-token:hover { transform: translateY(-1px); }
+
+    .hint-token.selected {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid var(--accent);
+      position: relative;
+    }
+
+    .hint-token.selected::after {
+      content: "✓";
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
     .mask {
       letter-spacing: 1px;
       font-family: "JetBrains Mono", "Fira Code", monospace;
@@ -139,6 +165,23 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 0.5rem;
+    }
+
+    .highlight-display {
+      margin: 0.5rem 0 0;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: #0b0b0b;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--fg);
+    }
+
+    .highlight-display .mismatch {
+      text-decoration: underline wavy var(--accent);
+      text-decoration-thickness: 2px;
     }
   
     .button-row {
@@ -266,6 +309,7 @@
           <textarea id="guess" placeholder="여기에 추리한 문장을 입력하세요."></textarea>
           <p id="guess-error" class="error" hidden></p>
           <p id="guess-feedback" class="muted"></p>
+          <p id="guess-highlight" class="highlight-display" hidden></p>
           <div class="button-row">
             <button type="submit">정답 제출</button>
             <button type="button" id="new-sentence">다른 문장 입력하기</button>
@@ -300,6 +344,7 @@
     const errorEl = document.getElementById("error");
     const guessErrorEl = document.getElementById("guess-error");
     const guessFeedbackEl = document.getElementById("guess-feedback");
+    const guessHighlightEl = document.getElementById("guess-highlight");
     const introView = document.getElementById("intro-view");
     const gameView = document.getElementById("game-view");
     const introHeader = document.getElementById("intro-header");
@@ -332,6 +377,11 @@
           toast.remove();
         }
       });
+    }
+
+    function escapeHtml(value) {
+      const map = { '&': "&amp;", '<': "&lt;", '>': "&gt;", '"': "&quot;", "'": "&#39;" };
+      return value.replace(/[&<>"']/g, (ch) => map[ch]);
     }
 
     function normalizeAndTokenize(text) {
@@ -381,8 +431,24 @@
     }
 
     function renderResult(result) {
-      hintEl.textContent = result.shuffledTokens.join(" / ");
+      renderHintTokens(result.shuffledTokens);
       maskEl.textContent = punctuationMask(result.lowered, result.punctuation);
+    }
+
+    function renderHintTokens(tokens) {
+      hintEl.innerHTML = "";
+      tokens.forEach((token, idx) => {
+        const span = document.createElement("span");
+        span.className = "hint-token";
+        span.textContent = token;
+        span.addEventListener("click", () => span.classList.toggle("selected"));
+        hintEl.appendChild(span);
+        if (idx < tokens.length - 1) {
+          const separator = document.createElement("span");
+          separator.textContent = " / ";
+          hintEl.appendChild(separator);
+        }
+      });
     }
 
     function showGameView() {
@@ -393,6 +459,8 @@
       guessArea.value = "";
       guessFeedbackEl.textContent = "";
       guessFeedbackEl.classList.remove("success");
+      guessHighlightEl.hidden = true;
+      guessHighlightEl.innerHTML = "";
       guessErrorEl.hidden = true;
       guessArea.focus();
     }
@@ -404,6 +472,8 @@
       introHeader.hidden = false;
       guessFeedbackEl.textContent = "";
       guessFeedbackEl.classList.remove("success");
+      guessHighlightEl.hidden = true;
+      guessHighlightEl.innerHTML = "";
       guessErrorEl.hidden = true;
       currentResult = null;
       textArea.focus();
@@ -450,6 +520,23 @@
         similarity: +(similarity * 100).toFixed(1),
         isExact: distance === 0,
       };
+    }
+
+    function buildMismatchMarkup(normalizedGuess, normalizedTarget) {
+      const maxLen = Math.max(normalizedGuess.length, normalizedTarget.length);
+      let html = "";
+      for (let i = 0; i < maxLen; i += 1) {
+        const guessCh = normalizedGuess[i];
+        const targetCh = normalizedTarget[i];
+        const displayCh = guessCh ?? "□";
+        const escaped = escapeHtml(displayCh);
+        if (guessCh === targetCh) {
+          html += escaped;
+        } else {
+          html += `<span class="mismatch">${escaped}</span>`;
+        }
+      }
+      return html || "";
     }
 
     function loadStats() {
@@ -521,7 +608,10 @@
         return;
       }
 
-      const { similarity, isExact } = calculateSimilarity(guessText, currentResult.normalized);
+      const { similarity, isExact, normalizedGuess, normalizedTarget } = calculateSimilarity(
+        guessText,
+        currentResult.normalized,
+      );
       const pointsEarned = isExact ? calculatePoints(currentResult.normalized) : 0;
       recordAttempt({ isCorrect: isExact, pointsEarned });
 
@@ -529,12 +619,16 @@
         const level = calculateLevel(stats.points || 0);
         guessFeedbackEl.textContent = "정답입니다! 완벽하게 일치합니다.";
         guessFeedbackEl.classList.add("success");
+        guessHighlightEl.hidden = true;
+        guessHighlightEl.innerHTML = "";
         textArea.value = "";
         showToast(`정답입니다! +${pointsEarned}점 · 레벨 ${level}`, "success");
         showIntroView();
       } else {
         guessFeedbackEl.textContent = `아쉽지만 정답이 아닙니다. 유사도: ${similarity}%`;
         guessFeedbackEl.classList.remove("success");
+        guessHighlightEl.innerHTML = buildMismatchMarkup(normalizedGuess, normalizedTarget);
+        guessHighlightEl.hidden = false;
       }
     });
 
