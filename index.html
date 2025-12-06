@@ -7,19 +7,24 @@
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #0f172a;
-      --fg: #e2e8f0;
-      --card: #1e293b;
-      --accent: #38bdf8;
+      --bg: #050505;
+      --fg: #f8fafc;
+      --card: #0d0d0d;
+      --accent: #ef4444;
       --error: #f87171;
+      --muted: #cbd5e1;
+      --border: #2a0c0c;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
 
     body {
       margin: 0;
       font-family: "Pretendard", "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
-      background: #0b1222;
+      background: linear-gradient(145deg, #050505, #0b0b0b 50%, #111);
       color: var(--fg);
       min-height: 100vh;
       display: flex;
@@ -36,7 +41,7 @@
     h1 {
       margin: 0 0 0.5rem;
       font-size: 2rem;
-      color: #e0f2fe;
+      color: #fca5a5;
     }
 
     main {
@@ -49,7 +54,7 @@
 
     .card {
       background: var(--card);
-      border: 1px solid #243149;
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 1.25rem;
       box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
@@ -60,35 +65,36 @@
     textarea {
       width: 100%;
       margin-top: 0.5rem;
-      background: #0f172a;
+      background: #0b0b0b;
       color: var(--fg);
-      border: 1px solid #243149;
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 0.75rem 0.9rem;
       font-size: 1rem;
       resize: vertical;
       min-height: 110px;
+      user-select: text;
     }
 
     button {
       appearance: none;
       margin-top: 0.75rem;
       padding: 0.7rem 1.1rem;
-      background: linear-gradient(120deg, #38bdf8, #6366f1);
-      color: #0b1222;
+      background: linear-gradient(135deg, #7f1d1d, var(--accent));
+      color: #fff7ed;
       border: none;
       border-radius: 10px;
       font-weight: 700;
       font-size: 1rem;
       cursor: pointer;
       transition: transform 120ms ease, box-shadow 120ms ease;
-      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+      box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
     }
 
     button:hover { transform: translateY(-1px); }
     button:active { transform: translateY(1px); }
 
-    .muted { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
+    .muted { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
 
     .view[hidden] { display: none; }
 
@@ -102,30 +108,30 @@
       display: inline-block;
       padding: 0.2rem 0.6rem;
       border-radius: 999px;
-      background: #0b1222;
-      border: 1px solid #243149;
+      background: #0b0b0b;
+      border: 1px solid var(--border);
       margin: 0.15rem;
     }
 
     .hint-text {
       word-wrap: break-word;
       font-weight: 600;
-      color: #bae6fd;
+      color: #fecdd3;
     }
 
     .mask {
       letter-spacing: 1px;
       font-family: "JetBrains Mono", "Fira Code", monospace;
-      background: #0b1222;
+      background: #0b0b0b;
       padding: 0.75rem;
       border-radius: 10px;
-      border: 1px solid #243149;
-      color: #e5e7eb;
+      border: 1px solid var(--border);
+      color: #f1f5f9;
     }
 
     .error { color: var(--error); font-weight: 700; margin: 0.5rem 0 0; }
 
-    .success { color: #34d399; font-weight: 700; margin: 0.5rem 0 0; }
+    .success { color: #f87171; font-weight: 700; margin: 0.5rem 0 0; }
 
     .stats {
       display: flex;
@@ -146,7 +152,7 @@
       width: 100%;
       max-width: 920px;
       padding: 0 1.5rem 2rem;
-      color: #94a3b8;
+      color: var(--muted);
       font-size: 0.9rem;
     }
 
@@ -168,19 +174,19 @@
 
     .toast {
       min-width: 240px;
-      background: rgba(30, 41, 59, 0.95);
-      border: 1px solid #243149;
-      border-left: 4px solid #38bdf8;
+      background: rgba(28, 12, 12, 0.95);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
       color: var(--fg);
       border-radius: 12px;
       padding: 0.9rem 1rem;
       box-shadow: 0 12px 45px rgba(0, 0, 0, 0.35);
       opacity: 0;
       transform: scale(0.92) translateY(6px);
-      animation: toast-life 3.2s ease-out forwards, toast-pulse 1.2s ease-out;
+      animation: toast-life 5.6s ease-out forwards, toast-pulse 1.4s ease-out;
     }
 
-    .toast.success { border-left-color: #34d399; }
+    .toast.success { border-left-color: #f87171; }
     .toast.error { border-left-color: var(--error); }
 
     @keyframes toast-life {
@@ -188,7 +194,7 @@
         opacity: 1;
         transform: scale(0.96) translateY(6px);
       }
-      60% {
+      72% {
         opacity: 1;
         transform: scale(1) translateY(0);
       }
