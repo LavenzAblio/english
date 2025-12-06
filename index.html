@@ -149,6 +149,11 @@
       color: #94a3b8;
       font-size: 0.9rem;
     }
+
+    .global-feedback {
+      margin: 0.5rem 0 0;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -214,8 +219,10 @@
   <footer>
     <div class="stats">
       <p id="accuracy" class="muted">누적 적중률: 0% (0/0)</p>
-      <p class="muted">문장부호는 ▢ 위치만 확인할 수 있으며 원문은 공개되지 않습니다.</p>
+      <p id="score" class="muted">점수: 0점 · 레벨 1</p>
     </div>
+    <p class="muted">문장부호는 ▢ 위치만 확인할 수 있으며 원문은 공개되지 않습니다.</p>
+    <p id="global-feedback" class="global-feedback" hidden></p>
   </footer>
 
   <script>
@@ -238,9 +245,33 @@
     const gameHeader = document.getElementById("game-header");
     const newSentenceBtn = document.getElementById("new-sentence");
     const accuracyEl = document.getElementById("accuracy");
+    const scoreEl = document.getElementById("score");
+    const globalFeedbackEl = document.getElementById("global-feedback");
 
     let currentResult = null;
     let stats = loadStats();
+
+    function calculatePoints(normalizedText) {
+      const cleanedLength = normalizedText.replace(/\s+/g, "").length;
+      return Math.max(5, Math.ceil(cleanedLength * 1.2));
+    }
+
+    function calculateLevel(points) {
+      return Math.floor(points / 100) + 1;
+    }
+
+    function setGlobalFeedback(message, isSuccess = false) {
+      if (!message) {
+        globalFeedbackEl.hidden = true;
+        globalFeedbackEl.textContent = "";
+        globalFeedbackEl.classList.remove("success", "error");
+        return;
+      }
+      globalFeedbackEl.hidden = false;
+      globalFeedbackEl.textContent = message;
+      globalFeedbackEl.classList.toggle("success", isSuccess);
+      globalFeedbackEl.classList.toggle("error", !isSuccess);
+    }
 
     function normalizeAndTokenize(text) {
       const lowered = text.toLowerCase();
@@ -363,10 +394,11 @@
     function loadStats() {
       try {
         const raw = localStorage.getItem(STATS_KEY);
-        return raw ? JSON.parse(raw) : { attempts: 0, correct: 0 };
+        const parsed = raw ? JSON.parse(raw) : null;
+        return parsed || { attempts: 0, correct: 0, points: 0 };
       } catch (err) {
         console.error("Failed to load stats", err);
-        return { attempts: 0, correct: 0 };
+        return { attempts: 0, correct: 0, points: 0 };
       }
     }
 
@@ -375,14 +407,19 @@
     }
 
     function updateStatsDisplay() {
-      const { attempts, correct } = stats;
+      const { attempts, correct, points = 0 } = stats;
       const accuracy = attempts === 0 ? 0 : ((correct / attempts) * 100).toFixed(1);
+      const level = calculateLevel(points);
       accuracyEl.textContent = `누적 적중률: ${accuracy}% (${correct}/${attempts})`;
+      scoreEl.textContent = `점수: ${points}점 · 레벨 ${level}`;
     }
 
-    function recordAttempt(isCorrect) {
+    function recordAttempt({ isCorrect, pointsEarned = 0 }) {
       stats.attempts += 1;
-      if (isCorrect) stats.correct += 1;
+      if (isCorrect) {
+        stats.correct += 1;
+        stats.points = (stats.points || 0) + pointsEarned;
+      }
       saveStats(stats);
       updateStatsDisplay();
     }
@@ -394,6 +431,7 @@
         return;
       }
       errorEl.hidden = true;
+      setGlobalFeedback("");
 
       const { lowered, normalized, tokens, punctuation } = normalizeAndTokenize(text);
       const shuffledTokens = shuffleTokens(tokens);
@@ -424,11 +462,15 @@
       }
 
       const { similarity, isExact } = calculateSimilarity(guessText, currentResult.normalized);
-      recordAttempt(isExact);
+      const pointsEarned = isExact ? calculatePoints(currentResult.normalized) : 0;
+      recordAttempt({ isCorrect: isExact, pointsEarned });
 
       if (isExact) {
+        const level = calculateLevel(stats.points || 0);
         guessFeedbackEl.textContent = "정답입니다! 완벽하게 일치합니다.";
         guessFeedbackEl.classList.add("success");
+        setGlobalFeedback(`정답입니다! +${pointsEarned}점 획득 · 현재 레벨 ${level}`, true);
+        showIntroView();
       } else {
         guessFeedbackEl.textContent = `아쉽지만 정답이 아닙니다. 유사도: ${similarity}%`;
         guessFeedbackEl.classList.remove("success");
@@ -436,8 +478,21 @@
     });
 
     newSentenceBtn.addEventListener("click", () => {
+      setGlobalFeedback("");
       showIntroView();
     });
+
+    function attachEnterSubmit(textarea, formElement) {
+      textarea.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          formElement.requestSubmit();
+        }
+      });
+    }
+
+    attachEnterSubmit(textArea, form);
+    attachEnterSubmit(guessArea, guessForm);
 
     window.addEventListener("load", () => {
       stats = loadStats();
