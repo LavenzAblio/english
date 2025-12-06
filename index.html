@@ -327,7 +327,11 @@
       toast.className = `toast ${type}`;
       toast.textContent = message;
       toastContainer.appendChild(toast);
-      toast.addEventListener("animationend", () => toast.remove());
+      toast.addEventListener("animationend", (event) => {
+        if (event.animationName === "toast-life") {
+          toast.remove();
+        }
+      });
     }
 
     function normalizeAndTokenize(text) {
