@@ -90,6 +90,8 @@
 
     .muted { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
 
+    .view[hidden] { display: none; }
+
     .result-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -151,6 +153,13 @@
 
     .error { color: var(--error); font-weight: 700; margin: 0.5rem 0 0; }
 
+    .button-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
     footer {
       width: 100%;
       max-width: 920px;
@@ -161,7 +170,7 @@
   </style>
 </head>
 <body>
-  <header>
+  <header id="intro-header">
     <h1>영문 무작위 배열 게임</h1>
     <p class="muted">
       영문 문장을 입력하면 소문자로 변환하고 특수 문장부호를 제거한 뒤, 단어를 무작위로 섞어 힌트를 제공합니다.
@@ -170,35 +179,54 @@
     </p>
   </header>
 
+  <header id="game-header" hidden>
+    <h1>추리 화면</h1>
+    <p class="muted">원문은 숨겨지고, 무작위 힌트와 문장부호 위치만 제공됩니다.</p>
+  </header>
+
   <main>
-    <section class="card">
+    <section id="intro-view" class="card view">
       <form id="shuffle-form">
         <label for="text">영문을 입력하세요</label>
         <textarea id="text" name="text" placeholder="There is a train."></textarea>
         <button type="submit">섞기</button>
         <p id="error" class="error" hidden></p>
       </form>
-    </section>
-
-    <section class="card">
-      <div class="result-grid">
-        <div>
-          <h2>무작위 힌트</h2>
-          <p id="hint" class="hint-text">아직 입력된 문장이 없습니다.</p>
-          <p class="muted">단어는 항상 <strong> / </strong> 로 구분됩니다.</p>
-        </div>
-        <div>
-          <h2>문장부호 위치 표시</h2>
-          <p id="mask" class="mask">▢ 기호가 문장부호가 있던 위치입니다.</p>
-          <p class="muted">원문 길이에 맞춰 ▢ 가 문장부호 힌트를 제공합니다.</p>
-        </div>
+      <div class="muted" style="margin-top: 0.75rem;">
+        입력을 완료하면 추리 화면으로 이동하며, 원문은 숨겨집니다.
       </div>
     </section>
 
-    <section class="card">
-      <h2>이전 문장</h2>
-      <ul id="history" class="history-list"></ul>
-      <p id="history-empty" class="history-empty">저장된 문장이 없습니다.</p>
+    <section id="game-view" class="view" hidden>
+      <section class="card">
+        <div class="result-grid">
+          <div>
+            <h2>무작위 힌트</h2>
+            <p id="hint" class="hint-text">아직 입력된 문장이 없습니다.</p>
+            <p class="muted">단어는 항상 <strong> / </strong> 로 구분됩니다.</p>
+          </div>
+          <div>
+            <h2>문장부호 위치 표시</h2>
+            <p id="mask" class="mask">▢ 기호가 문장부호가 있던 위치입니다.</p>
+            <p class="muted">문장 길이는 표시하지만, 원문 글자는 모두 숨겨집니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>추리 입력</h2>
+        <label for="guess" class="muted">무작위 힌트와 문장부호 위치를 활용해 문장을 재구성해 보세요.</label>
+        <textarea id="guess" placeholder="여기에 추리한 문장을 입력하세요."></textarea>
+        <div class="button-row">
+          <button type="button" id="new-sentence">다른 문장 입력하기</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>이전 문장</h2>
+        <ul id="history" class="history-list"></ul>
+        <p id="history-empty" class="history-empty">저장된 문장이 없습니다.</p>
+      </section>
     </section>
   </main>
 
@@ -212,16 +240,23 @@
     const STORAGE_KEY = "shuffle-history";
 
     const textArea = document.getElementById("text");
+    const guessArea = document.getElementById("guess");
     const form = document.getElementById("shuffle-form");
     const hintEl = document.getElementById("hint");
     const maskEl = document.getElementById("mask");
     const errorEl = document.getElementById("error");
     const historyEl = document.getElementById("history");
     const historyEmptyEl = document.getElementById("history-empty");
+    const introView = document.getElementById("intro-view");
+    const gameView = document.getElementById("game-view");
+    const introHeader = document.getElementById("intro-header");
+    const gameHeader = document.getElementById("game-header");
+    const newSentenceBtn = document.getElementById("new-sentence");
 
     function normalizeAndTokenize(text) {
       const lowered = text.toLowerCase();
       const punctuation = [];
+      PUNCTUATION_REGEX.lastIndex = 0;
       let match;
       while ((match = PUNCTUATION_REGEX.exec(lowered)) !== null) {
         punctuation.push({ index: match.index, symbol: match[0] });
@@ -241,7 +276,7 @@
         }
       }
 
-      return { normalized, tokens, punctuation };
+      return { lowered, normalized, tokens, punctuation };
     }
 
     function shuffleTokens(tokens) {
@@ -253,19 +288,37 @@
       return arr;
     }
 
-    function punctuationMask(normalized, punctuation, placeholder = "▢") {
-      const chars = Array.from(normalized);
-      punctuation.forEach(({ index }) => {
-        if (index < chars.length) {
-          chars[index] = placeholder;
-        }
-      });
-      return chars.join("");
+    function punctuationMask(originalLower, punctuation, placeholder = "·", punctPlaceholder = "▢") {
+      const punctIndexes = new Set(punctuation.map((p) => p.index));
+      return Array.from(originalLower)
+        .map((ch, idx) => {
+          if (punctIndexes.has(idx)) return punctPlaceholder;
+          if (/\s/.test(ch)) return ch;
+          return placeholder;
+        })
+        .join("");
     }
 
     function renderResult(result) {
       hintEl.textContent = result.shuffledTokens.join(" / ");
-      maskEl.textContent = punctuationMask(result.normalized, result.punctuation);
+      maskEl.textContent = punctuationMask(result.lowered, result.punctuation);
+    }
+
+    function showGameView() {
+      introView.hidden = true;
+      introHeader.hidden = true;
+      gameView.hidden = false;
+      gameHeader.hidden = false;
+      guessArea.value = "";
+      guessArea.focus();
+    }
+
+    function showIntroView() {
+      gameView.hidden = true;
+      gameHeader.hidden = true;
+      introView.hidden = false;
+      introHeader.hidden = false;
+      textArea.focus();
     }
 
     function loadHistory() {
@@ -314,7 +367,7 @@
           li.innerHTML = `<strong>${entries.length - index}</strong> ${snippet}`;
           li.title = "클릭하여 다시 섞기";
           li.addEventListener("click", () => {
-            textArea.value = entry.original;
+            textArea.value = "";
             shuffleAndRender(entry.original);
           });
           historyEl.appendChild(li);
@@ -329,16 +382,21 @@
       }
       errorEl.hidden = true;
 
-      const { normalized, tokens, punctuation } = normalizeAndTokenize(text);
+      const { lowered, normalized, tokens, punctuation } = normalizeAndTokenize(text);
       const shuffledTokens = shuffleTokens(tokens);
-      const result = { original: text, normalized, tokens, punctuation, shuffledTokens };
+      const result = { original: text, lowered, normalized, tokens, punctuation, shuffledTokens };
       renderResult(result);
       addToHistory(result);
+      showGameView();
     }
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       shuffleAndRender(textArea.value);
+    });
+
+    newSentenceBtn.addEventListener("click", () => {
+      showIntroView();
     });
 
     // Restore latest entry on load if it exists
@@ -347,8 +405,9 @@
       const entries = loadHistory();
       if (entries.length > 0) {
         const last = entries[entries.length - 1];
-        textArea.value = last.original;
+        textArea.value = "";
         renderResult(last);
+        showGameView();
       }
     });
   </script>
