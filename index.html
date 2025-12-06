@@ -637,13 +637,20 @@
     }
 
     function loadStats() {
+      const base = { attempts: 0, correct: 0, points: 0, similaritySum: 0 };
       try {
         const raw = localStorage.getItem(STATS_KEY);
         const parsed = raw ? JSON.parse(raw) : null;
-        return parsed || { attempts: 0, correct: 0, points: 0 };
+        if (!parsed) return { ...base };
+        return {
+          ...base,
+          ...parsed,
+          similaritySum:
+            parsed.similaritySum ?? (typeof parsed.correct === "number" ? parsed.correct * 100 : 0),
+        };
       } catch (err) {
         console.error("Failed to load stats", err);
-        return { attempts: 0, correct: 0, points: 0 };
+        return { ...base };
       }
     }
 
@@ -652,15 +659,18 @@
     }
 
     function updateStatsDisplay() {
-      const { attempts, correct, points = 0 } = stats;
-      const accuracy = attempts === 0 ? 0 : ((correct / attempts) * 100).toFixed(1);
+      const { attempts, correct, points = 0, similaritySum = 0 } = stats;
+      const accuracy = attempts === 0 ? 0 : (similaritySum / attempts).toFixed(1);
       const level = calculateLevel(points);
       accuracyEl.textContent = `누적 적중률: ${accuracy}% (${correct}/${attempts})`;
       scoreEl.textContent = `점수: ${points}점 · 레벨 ${level}`;
     }
 
-    function recordAttempt({ isCorrect, pointsEarned = 0 }) {
+    function recordAttempt({ isCorrect, pointsEarned = 0, similarity }) {
       stats.attempts += 1;
+      if (typeof similarity === "number" && !Number.isNaN(similarity)) {
+        stats.similaritySum = (stats.similaritySum || 0) + similarity;
+      }
       if (isCorrect) {
         stats.correct += 1;
         stats.points = (stats.points || 0) + pointsEarned;
@@ -712,7 +722,7 @@
       const guessTokens = normalizeAndTokenize(guessText).tokens;
       const analysis = analyzeTokens(currentResult.tokens, guessTokens);
       const pointsEarned = isExact ? calculatePoints(currentResult.normalized) : 0;
-      recordAttempt({ isCorrect: isExact, pointsEarned });
+      recordAttempt({ isCorrect: isExact, pointsEarned, similarity });
 
       if (isExact) {
         const level = calculateLevel(stats.points || 0);
